@@ -101,20 +101,12 @@ def generate_test():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    # Получаем имя хоста и IP-адрес
-    import socket
-    hostname = socket.gethostname()
-    ip_address = socket.gethostbyname(hostname)
+    # Получаем порт из переменной окружения или используем 8080 по умолчанию
+    port = int(os.environ.get('PORT', 8080))
     
-    logger.info(f"Hostname: {hostname}")
-    logger.info(f"IP Address: {ip_address}")
-    logger.info("Starting Flask application")
-    
+    # Запускаем приложение на всех интерфейсах
     app.run(
-        host="127.0.0.1",
-        port=8080,
-        debug=True,
-        use_reloader=True,
-        use_debugger=True,
-        threaded=True
+        host='0.0.0.0',
+        port=port,
+        debug=False  # Отключаем debug в production
     )
