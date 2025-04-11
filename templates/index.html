@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Генератор тестов с ИИ</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4361ee;
+            --primary-dark: #3a56d4;
+            --error: #f72585;
+            --success: #4bb543;
+            --light-gray: #f8f9fa;
+            --dark: #212529;
+            --border-radius: 8px;
+            --transition: all 0.3s ease;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Montserrat', sans-serif;
+            line-height: 1.6;
+            background-color: #f5f7fa;
+            padding: 20px;
+            color: var(--dark);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: var(--border-radius);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: var(--primary);
+            font-size: 2rem;
+        }
+        
+        h2 {
+            color: var(--primary);
+            margin-bottom: 15px;
+            font-size: 1.5rem;
+        }
+        
+        .form-container {
+            margin-bottom: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        
+        input, select, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: var(--border-radius);
+            font-family: inherit;
+            font-size: 1rem;
+            transition: var(--transition);
+        }
+        
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.2);
+        }
+        
+        button {
+            width: 100%;
+            padding: 14px;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: var(--border-radius);
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: var(--transition);
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        button:hover {
+            background-color: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .loading, .error-message, .success-message {
+            display: none;
+            text-align: center;
+            margin: 25px 0;
+            padding: 15px;
+            border-radius: var(--border-radius);
+        }
+        
+        .loading.show, .error-message.show, .success-message.show {
+            display: block;
+        }
+        
+        .loading {
+            background-color: rgba(67, 97, 238, 0.05);
+        }
+        
+        .spinner {
+            border: 4px solid rgba(0,0,0,0.1);
+            border-radius: 50%;
+            border-top: 4px solid var(--primary);
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error-message {
+            background-color: rgba(247, 37, 133, 0.1);
+            border-left: 4px solid var(--error);
+        }
+        
+        .error-message p {
+            color: var(--error);
+            font-weight: 500;
+        }
+        
+        .success-message {
+            background-color: rgba(75, 181, 67, 0.1);
+            border-left: 4px solid var(--success);
+        }
+        
+        .result-container {
+            display: none;
+            margin-top: 25px;
+        }
+        
+        .result-container.show {
+            display: block;
+        }
+        
+        #testContent {
+            background-color: var(--light-gray);
+            padding: 20px;
+            border-radius: var(--border-radius);
+            white-space: pre-wrap;
+            line-height: 1.8;
+        }
+        
+        .file-upload {
+            margin-top: 15px;
+        }
+        
+        .file-upload-label {
+            display: block;
+            padding: 12px;
+            border: 2px dashed #e9ecef;
+            border-radius: var(--border-radius);
+            text-align: center;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        
+        .file-upload-label:hover {
+            border-color: var(--primary);
+            background-color: rgba(67, 97, 238, 0.05);
+        }
+        
+        .file-upload input[type="file"] {
+            display: none;
+        }
+        
+        .file-name {
+            margin-top: 8px;
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+        
+        .actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .actions button {
+            flex: 1;
+        }
+        
+        .copy-btn {
+            background-color: #6c757d;
+        }
+        
+        .copy-btn:hover {
+            background-color: #5a6268;
+        }
+        
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+            }
+            
+            h1 {
+                font-size: 1.5rem;
+            }
+        }
+
+        .logo-container {
+            text-align: center;
+            margin-bottom: 30px;
+            position: relative;
+            height: 120px;
+        }
+
+        .logo-image {
+            width: 100px;
+            height: 100px;
+            object-fit: contain;
+            transition: all 0.5s ease;
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+        }
+
+        .logo-image.active {
+            opacity: 1;
+            animation: fadeInOut 3s ease-in-out;
+        }
+
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateX(-50%) scale(0.8); }
+            20% { opacity: 1; transform: translateX(-50%) scale(1); }
+            80% { opacity: 1; transform: translateX(-50%) scale(1); }
+            100% { opacity: 0; transform: translateX(-50%) scale(0.8); }
+        }
+
+        .logo-image:hover {
+            transform: translateX(-50%) scale(1.1);
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo-container">
+            <img src="https://cdn-icons-png.flaticon.com/512/2232/2232688.png" alt="Test Icon" class="logo-image" id="logo1">
+            <img src="https://cdn-icons-png.flaticon.com/512/2232/2232689.png" alt="Education Icon" class="logo-image" id="logo2">
+            <img src="https://cdn-icons-png.flaticon.com/512/2232/2232690.png" alt="Checkmark Icon" class="logo-image" id="logo3">
+            <img src="https://cdn-icons-png.flaticon.com/512/2232/2232691.png" alt="Graduation Icon" class="logo-image" id="logo4">
+        </div>
+        
+        <h1>Генератор тестов с ИИ</h1>
+        
+        <div class="form-container">
+            <div class="form-group">
+                <label for="topic">Тема теста:</label>
+                <input type="text" id="topic" placeholder="Например: История России, Математика, Биология...">
+            </div>
+            
+            <div class="form-group">
+                <label>Или загрузите файл с материалом:</label>
+                <div class="file-upload">
+                    <label for="fileInput" class="file-upload-label">
+                        <span id="fileLabelText">Перетащите файл сюда или кликните для выбора</span>
+                        <input type="file" id="fileInput" accept=".txt,.pdf,.docx,.doc">
+                        <div id="fileName" class="file-name"></div>
+                    </label>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="difficulty">Сложность:</label>
+                <select id="difficulty">
+                    <option value="легкая">Легкая</option>
+                    <option value="средняя" selected>Средняя</option>
+                    <option value="сложная">Сложная</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="count">Количество вопросов:</label>
+                <select id="count">
+                    <option value="5">5</option>
+                    <option value="10" selected>10</option>
+                    <option value="15">15</option>
+                    <option value="20">20</option>
+                </select>
+            </div>
+            
+            <button id="generateBtn">
+                <span id="btnText">Сгенерировать тест</span>
+                <span id="btnSpinner" style="display:none;">🌀</span>
+            </button>
+        </div>
+        
+        <div class="loading">
+            <div class="spinner"></div>
+            <p>Генерируем тест. Это может занять несколько секунд...</p>
+        </div>
+        
+        <div class="error-message">
+            <p id="errorText">Произошла ошибка при генерации теста. Пожалуйста, попробуйте еще раз.</p>
+        </div>
+        
+        <div class="success-message">
+            <p>Тест успешно сгенерирован!</p>
+        </div>
+        
+        <div class="result-container">
+            <h2>Ваш тест:</h2>
+            <div id="testContent"></div>
+            
+            <div class="actions">
+                <button id="copyBtn" class="copy-btn">Копировать тест</button>
+                <button id="downloadBtn">Скачать как TXT</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Элементы DOM
+        const topicInput = document.getElementById('topic');
+        const fileInput = document.getElementById('fileInput');
+        const fileLabelText = document.getElementById('fileLabelText');
+        const fileNameDisplay = document.getElementById('fileName');
+        const generateBtn = document.getElementById('generateBtn');
+        const btnText = document.getElementById('btnText');
+        const btnSpinner = document.getElementById('btnSpinner');
+        const loadingIndicator = document.querySelector('.loading');
+        const errorMessage = document.querySelector('.error-message');
+        const errorText = document.getElementById('errorText');
+        const successMessage = document.querySelector('.success-message');
+        const resultContainer = document.querySelector('.result-container');
+        const testContent = document.getElementById('testContent');
+        const copyBtn = document.getElementById('copyBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        
+        // Обработчик загрузки файла
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                const file = e.target.files[0];
+                fileLabelText.textContent = 'Файл выбран:';
+                fileNameDisplay.textContent = file.name;
+                
+                // Очищаем поле темы, если загружен файл
+                topicInput.value = '';
+            } else {
+                fileLabelText.textContent = 'Перетащите файл сюда или кликните для выбора';
+                fileNameDisplay.textContent = '';
+            }
+        });
+        
+        // Drag and drop для файла
+        const fileUploadLabel = document.querySelector('.file-upload-label');
+        
+        fileUploadLabel.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            fileUploadLabel.style.borderColor = 'var(--primary)';
+            fileUploadLabel.style.backgroundColor = 'rgba(67, 97, 238, 0.1)';
+        });
+        
+        fileUploadLabel.addEventListener('dragleave', () => {
+            fileUploadLabel.style.borderColor = '#e9ecef';
+            fileUploadLabel.style.backgroundColor = '';
+        });
+        
+        fileUploadLabel.addEventListener('drop', (e) => {
+            e.preventDefault();
+            fileUploadLabel.style.borderColor = '#e9ecef';
+            fileUploadLabel.style.backgroundColor = '';
+            
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                const event = new Event('change');
+                fileInput.dispatchEvent(event);
+            }
+        });
+        
+        // Генерация теста
+        generateBtn.addEventListener('click', async () => {
+            const topic = topicInput.value.trim();
+            const difficulty = document.getElementById('difficulty').value;
+            const count = document.getElementById('count').value;
+            const file = fileInput.files[0];
+            
+            if (!topic && !file) {
+                errorText.textContent = 'Пожалуйста, введите тему теста или загрузите файл';
+                errorMessage.classList.add('show');
+                setTimeout(() => errorMessage.classList.remove('show'), 3000);
+                return;
+            }
+            
+            // Показываем индикатор загрузки
+            loadingIndicator.classList.add('show');
+            errorMessage.classList.remove('show');
+            successMessage.classList.remove('show');
+            resultContainer.classList.remove('show');
+            generateBtn.disabled = true;
+            btnText.textContent = 'Генерация...';
+            btnSpinner.style.display = 'inline';
+            
+            try {
+                const formData = new FormData();
+                if (topic) formData.append('topic', topic);
+                if (file) formData.append('file', file);
+                formData.append('difficulty', difficulty);
+                formData.append('count', count);
+                
+                const response = await fetch('/generate', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || `Ошибка сервера: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                testContent.innerHTML = data.test.replace(/\n/g, '<br>');
+                resultContainer.classList.add('show');
+                successMessage.classList.add('show');
+            } catch (error) {
+                console.error('Error:', error);
+                errorText.textContent = `Ошибка: ${error.message || 'Неизвестная ошибка'}`;
+                errorMessage.classList.add('show');
+            } finally {
+                loadingIndicator.classList.remove('show');
+                generateBtn.disabled = false;
+                btnText.textContent = 'Сгенерировать тест';
+                btnSpinner.style.display = 'none';
+            }
+        });
+        
+        // Копирование теста
+        copyBtn.addEventListener('click', () => {
+            const textToCopy = testContent.textContent;
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                const originalText = copyBtn.textContent;
+                copyBtn.textContent = 'Скопировано!';
+                setTimeout(() => {
+                    copyBtn.textContent = originalText;
+                }, 2000);
+            });
+        });
+        
+        // Скачивание теста
+        downloadBtn.addEventListener('click', () => {
+            const textToDownload = testContent.textContent;
+            const blob = new Blob([textToDownload], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'тест.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+
+        // Logo rotation functionality
+        const logos = document.querySelectorAll('.logo-image');
+        let currentLogo = 0;
+
+        function rotateLogos() {
+            logos.forEach(logo => logo.classList.remove('active'));
+            currentLogo = (currentLogo + 1) % logos.length;
+            logos[currentLogo].classList.add('active');
+        }
+
+        // Start logo rotation
+        setInterval(rotateLogos, 3000);
+
+        // Add click interaction to logos
+        logos.forEach(logo => {
+            logo.addEventListener('click', () => {
+                // Add a fun animation when clicked
+                logo.style.animation = 'none';
+                logo.offsetHeight; // Trigger reflow
+                logo.style.animation = 'fadeInOut 1s ease-in-out';
+            });
+        });
+    </script>
+</body>
+</html> 
