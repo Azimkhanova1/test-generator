@@ -1,121 +1,119 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, render_template, send_from_directory
 import requests
 import os
-from dotenv import load_dotenv
 import logging
-import socket
-import traceback
+from dotenv import load_dotenv
 
 # Настройка логирования
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Загрузка переменных окружения
 load_dotenv()
 
+# Проверка токена
+HF_TOKEN = os.getenv("HF_TOKEN")
+logger.info(f"API Key loaded: {'Yes' if HF_TOKEN else 'No'}")
+if HF_TOKEN:
+    logger.info(f"API Key value first 10 chars: {HF_TOKEN[:10]}")
+
 app = Flask(__name__, static_folder='static')
-HF_API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
-HF_API_KEY = os.getenv('HF_API_KEY')
 
-# Логируем информацию о ключе (без самого ключа)
-logger.info(f"API Key loaded: {'Yes' if HF_API_KEY else 'No'}")
-logger.info(f"API Key value first 10 chars: {HF_API_KEY[:10] if HF_API_KEY else 'None'}")
-
-# Получаем IP-адрес хоста
-hostname = socket.gethostname()
-ip_address = socket.gethostbyname(hostname)
-logger.info(f"Hostname: {hostname}")
-logger.info(f"IP Address: {ip_address}")
+# Конфигурация Hugging Face API
+HF_API_URL = "https://api-inference.huggingface.co/models/gpt2"
+HEADERS = {
+    "Authorization": f"Bearer {HF_TOKEN}",
+    "Content-Type": "application/json"
+}
 
 @app.route('/')
-def index():
-    logger.debug("Index route accessed")
+def home():
     return render_template('index.html')
 
-@app.route('/static/<path:filename>')
-def serve_static(filename):
-    logger.debug(f"Serving static file: {filename}")
-    return send_from_directory(app.static_folder, filename)
-
-def generate_with_huggingface(prompt):
-    try:
-        headers = {
-            "Authorization": f"Bearer {HF_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "inputs": prompt,
-            "parameters": {
-                "max_new_tokens": 1000,
-                "temperature": 0.7,
-                "top_p": 0.9,
-                "do_sample": True,
-                "return_full_text": False
-            }
-        }
-        logger.debug(f"Sending request to {HF_API_URL}")
-        logger.debug(f"Headers: {headers}")
-        logger.debug(f"Payload: {payload}")
-        
-        response = requests.post(HF_API_URL, headers=headers, json=payload)
-        logger.info(f"Response status code: {response.status_code}")
-        logger.info(f"Response content: {response.text}")
-        
-        if response.status_code == 200:
-            return response.json()
-        else:
-            error_msg = f"API Error: {response.status_code} - {response.text}"
-            logger.error(error_msg)
-            return {"error": error_msg}
-    except Exception as e:
-        error_msg = f"Exception in generate_with_huggingface: {str(e)}\n{traceback.format_exc()}"
-        logger.error(error_msg)
-        return {"error": error_msg}
+@app.route('/static/<path:path>')
+def send_static(path):
+    return send_from_directory('static', path)
 
 @app.route('/generate', methods=['POST'])
 def generate_test():
     try:
-        logger.debug("Generate route accessed")
-        logger.debug(f"Request data: {request.data}")
-        
-        data = request.json
-        logger.debug(f"Parsed JSON data: {data}")
-        
-        topic = data['topic']
-        difficulty = data['difficulty']
-        count = data['count']
-
-        prompt = f"""Сгенерируй тест на тему {topic}. 
-        Сложность: {difficulty}. 
-        {count} вопросов с 4 вариантами ответов (1 правильный). 
-        Формат: '1. Вопрос...\nA) Вариант 1\nB) Вариант 2...'"""
-
-        logger.debug(f"Generated prompt: {prompt}")
-        
-        response = generate_with_huggingface(prompt)
-        logger.debug(f"API response: {response}")
-        
-        if "error" in response:
-            logger.error(f"Error from API: {response['error']}")
-            return jsonify({'success': False, 'error': response["error"]})
-        
-        if isinstance(response, list) and len(response) > 0:
-            test_content = response[0]['generated_text']
-            return jsonify({'success': True, 'test': test_content})
+        # Получаем данные из запроса
+        if request.is_json:
+            data = request.json
         else:
-            error_msg = 'Неверный формат ответа от API'
-            logger.error(error_msg)
-            return jsonify({'success': False, 'error': error_msg})
+            data = request.form
+
+        topic = data.get('topic', '')
+        difficulty = data.get('difficulty', 'средний')
+        count = data.get('count', 5)
+        
+        # Проверяем загруженный файл
+        file = request.files.get('file')
+        if file:
+            # Читаем содержимое файла
+            file_content = file.read().decode('utf-8')
+            topic = f"{topic}\n\nКонтекст из файла:\n{file_content}"
+
+        if not topic:
+            return jsonify({"error": "Не указана тема теста и не загружен файл"}), 400
+
+        # Формируем промпт
+        prompt = f"""
+        Сгенерируй тест на тему: {topic}
+        Уровень сложности: {difficulty}
+        Количество вопросов: {count}
+        Формат каждого вопроса:
+        1. Вопрос...
+        A) Вариант 1
+        B) Вариант 2
+        C) Вариант 3
+        D) Вариант 4
+        Правильный ответ: A
+        """
+
+        # Отправляем запрос к Hugging Face API
+        response = requests.post(
+            HF_API_URL,
+            headers=HEADERS,
+            json={
+                "inputs": prompt,
+                "parameters": {
+                    "max_length": 1000,
+                    "temperature": 0.7
+                }
+            }
+        )
+
+        # Обрабатываем ответ
+        if response.status_code != 200:
+            error_msg = response.json().get("error", "Неизвестная ошибка API")
+            logger.error(f"Hugging Face API error: {error_msg}")
+            return jsonify({
+                "error": f"Ошибка Hugging Face API: {error_msg}",
+                "status_code": response.status_code
+            }), 500
+
+        generated_text = response.json()[0]['generated_text']
+        return jsonify({"test": generated_text})
+
     except Exception as e:
-        error_msg = f"Exception in generate_test: {str(e)}\n{traceback.format_exc()}"
-        logger.error(error_msg)
-        return jsonify({'success': False, 'error': str(e)})
+        logger.error(f"Error in generate_test: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
+    # Получаем имя хоста и IP-адрес
+    import socket
+    hostname = socket.gethostname()
+    ip_address = socket.gethostbyname(hostname)
+    
+    logger.info(f"Hostname: {hostname}")
+    logger.info(f"IP Address: {ip_address}")
     logger.info("Starting Flask application")
+    
     app.run(
-        debug=True,
-        host='127.0.0.1',
+        host="127.0.0.1",
         port=8080,
+        debug=True,
         use_reloader=True,
         use_debugger=True,
         threaded=True
