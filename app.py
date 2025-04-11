@@ -20,7 +20,7 @@ if HF_TOKEN:
 app = Flask(__name__, static_folder='static')
 
 # Конфигурация Hugging Face API
-HF_API_URL = "https://api-inference.huggingface.co/models/gpt2"
+HF_API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"  # Более мощная модель
 HEADERS = {
     "Authorization": f"Bearer {HF_TOKEN}",
     "Content-Type": "application/json"
@@ -50,16 +50,20 @@ def generate_test():
         # Проверяем загруженный файл
         file = request.files.get('file')
         if file:
-            # Читаем содержимое файла
-            file_content = file.read().decode('utf-8')
-            topic = f"{topic}\n\nКонтекст из файла:\n{file_content}"
+            try:
+                # Читаем содержимое файла
+                file_content = file.read().decode('utf-8')
+                topic = f"{topic}\n\nКонтекст из файла:\n{file_content}"
+            except Exception as e:
+                logger.error(f"Error reading file: {str(e)}")
+                return jsonify({"error": "Ошибка при чтении файла"}), 400
 
         if not topic:
             return jsonify({"error": "Не указана тема теста и не загружен файл"}), 400
 
         # Формируем промпт
         prompt = f"""
-        Сгенерируй тест на тему: {topic}
+        <s>[INST] Сгенерируй тест на тему: {topic}
         Уровень сложности: {difficulty}
         Количество вопросов: {count}
         Формат каждого вопроса:
@@ -69,32 +73,49 @@ def generate_test():
         C) Вариант 3
         D) Вариант 4
         Правильный ответ: A
+        [/INST]
         """
 
         # Отправляем запрос к Hugging Face API
-        response = requests.post(
-            HF_API_URL,
-            headers=HEADERS,
-            json={
-                "inputs": prompt,
-                "parameters": {
-                    "max_length": 1000,
-                    "temperature": 0.7
-                }
-            }
-        )
+        try:
+            response = requests.post(
+                HF_API_URL,
+                headers=HEADERS,
+                json={
+                    "inputs": prompt,
+                    "parameters": {
+                        "max_length": 1000,
+                        "temperature": 0.7,
+                        "return_full_text": False
+                    }
+                },
+                timeout=30  # Увеличиваем таймаут
+            )
+        except requests.exceptions.Timeout:
+            logger.error("Hugging Face API request timed out")
+            return jsonify({"error": "Превышено время ожидания ответа от API"}), 504
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Hugging Face API request failed: {str(e)}")
+            return jsonify({"error": f"Ошибка при запросе к API: {str(e)}"}), 502
 
         # Обрабатываем ответ
         if response.status_code != 200:
-            error_msg = response.json().get("error", "Неизвестная ошибка API")
+            try:
+                error_msg = response.json().get("error", "Неизвестная ошибка API")
+            except:
+                error_msg = f"HTTP {response.status_code}: {response.text}"
             logger.error(f"Hugging Face API error: {error_msg}")
             return jsonify({
                 "error": f"Ошибка Hugging Face API: {error_msg}",
                 "status_code": response.status_code
             }), 500
 
-        generated_text = response.json()[0]['generated_text']
-        return jsonify({"test": generated_text})
+        try:
+            generated_text = response.json()[0]['generated_text']
+            return jsonify({"test": generated_text})
+        except (KeyError, IndexError) as e:
+            logger.error(f"Error parsing API response: {str(e)}")
+            return jsonify({"error": "Ошибка при обработке ответа API"}), 500
 
     except Exception as e:
         logger.error(f"Error in generate_test: {str(e)}")
